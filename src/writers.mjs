@@ -117,3 +117,69 @@ export async function writeOutputs({ playlist, rows, apiBaseURL }) {
     plainTxtPath
   };
 }
+
+export async function writeRankOutputs({
+  rank,
+  apiBaseURL
+}) {
+  await fs.mkdir(OUT_DIR, {
+    recursive: true
+  });
+
+  const suffix =
+    rank.type === "week"
+      ? "week"
+      : "all";
+
+  const csvPath = path.join(
+    OUT_DIR,
+    `听歌排行_${suffix}.csv`
+  );
+
+  const jsonPath = path.join(
+    OUT_DIR,
+    `听歌排行_${suffix}.json`
+  );
+
+  const columns = [
+    "rank",
+    "score",
+    "play_count",
+    "song_id",
+    "song_name",
+    "artist_names",
+    "artist_ids",
+    "album_name",
+    "album_id",
+    "duration_ms",
+    "source_url"
+  ];
+
+  await fs.writeFile(
+    csvPath,
+    toCsv(rank.rows, columns),
+    "utf8"
+  );
+
+  await fs.writeFile(
+    jsonPath,
+    JSON.stringify(
+      {
+        source: "NetEase Cloud Music /user/record",
+        api: apiBaseURL,
+        type: rank.type,
+        apiType: rank.apiType,
+        count: rank.count,
+        tracks: rank.rows
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+
+  return {
+    csvPath,
+    jsonPath
+  };
+}

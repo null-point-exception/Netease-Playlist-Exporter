@@ -16,8 +16,14 @@
 
 import { ApiClient } from "../src/api-client.mjs";
 import { qrLogin, loadCookie } from "../src/auth.mjs";
+// import { exportPlaylist } from "../src/exporter.mjs";
+// import { writeOutputs } from "../src/writers.mjs";
 import { exportPlaylist } from "../src/exporter.mjs";
-import { writeOutputs } from "../src/writers.mjs";
+import { exportRank } from "../src/rank-exporter.mjs";
+import {
+  writeOutputs,
+  writeRankOutputs
+} from "../src/writers.mjs";
 
 function usage() {
   console.log(`
@@ -26,12 +32,15 @@ Usage:
 
   node ./bin/netease-playlist-export.mjs export <playlist-id-or-url> [options]
 
+  node ./bin/netease-playlist-export.mjs rank [options]
+
 Options:
   --api <url>              API server URL. Default: http://localhost:3000
   --cookie <cookie>        Manual cookie, e.g. 'MUSIC_U=xxx;'
   --anonymous              Do not use saved cookie
   --expected-count <n>     Warn if exported count differs from expected count
   --batch-size <n>         song/detail batch size. Default: 400
+  --type <all|week>        all=全部听歌排行, week=本周听歌排行
 
 Examples:
   npm run start-api
@@ -105,6 +114,89 @@ function parseExportArgs(args) {
   return opts;
 }
 
+function parseRankArgs(args) {
+  const opts = {
+    api: "http://localhost:3000",
+    cookie: "",
+    anonymous: false,
+    type: "all"
+  };
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+
+    if (arg === "--api") {
+      opts.api = args[++i];
+    } else if (arg === "--cookie") {
+      opts.cookie = args[++i];
+    } else if (arg === "--anonymous") {
+      opts.anonymous = true;
+    } else if (arg === "--type") {
+      opts.type = args[++i];
+    } else {
+      throw new Error(
+        `Unknown argument for rank command: ${arg}`
+      );
+    }
+  }
+
+  if (!["all", "week"].includes(opts.type)) {
+    throw new Error(
+      "--type must be 'all' or 'week'"
+    );
+  }
+
+  return opts;
+}
+
+async function runRank(args) {
+  const opts = parseRankArgs(args);
+
+  let cookie = opts.cookie;
+
+  if (!cookie && !opts.anonymous) {
+    cookie = await loadCookie();
+  }
+
+  if (!cookie) {
+    console.warn(
+      "WARNING: exporting anonymously."
+    );
+
+    console.warn(
+      "Listening records normally require login."
+    );
+
+    console.warn("");
+  }
+
+  const api = new ApiClient({
+    baseURL: opts.api,
+    cookie
+  });
+
+  const result = await exportRank(api, {
+    type: opts.type
+  });
+
+  const files = await writeRankOutputs({
+    rank: result,
+    apiBaseURL: opts.api
+  });
+
+  console.log("");
+  console.log("Listening rank export finished");
+  console.log(
+    `  CSV:  ${files.csvPath}`
+  );
+  console.log(
+    `  JSON: ${files.jsonPath}`
+  );
+  console.log(
+    `  count: ${result.count}`
+  );
+}
+
 async function runLogin(args) {
   const opts = parseCommonArgs(args);
   const api = new ApiClient({ baseURL: opts.api });
@@ -175,6 +267,11 @@ async function main() {
 
   if (command === "export") {
     await runExport(args);
+    return;
+  }
+
+  if (command === "rank") {
+    await runRank(args);
     return;
   }
 
